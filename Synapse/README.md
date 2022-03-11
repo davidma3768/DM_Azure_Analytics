@@ -2,13 +2,24 @@
 
 ## Objective
 
-To cover the following
+
+---
+
+_To cover the following_
+
+---
+
 ### Gen2 Services within Synapse: 
-  -- Dedicated SQL Pool
-  -- Lake Database / Serverless
-  -- Spark Pool and Spark related features
-  -- Pipeline
-  -- Security related
+    -- Dedicated SQL Pool
+
+    -- Lake Database / Serverless
+
+    -- Spark Pool and Spark related features
+
+    -- Pipeline
+
+    -- Security related
+  
   
  Gen3
  
@@ -18,15 +29,17 @@ To cover the following
  
  ### Performance Tuning and Troubleshooting
  
+ 
+---
+
+_Keeping below content for MD reference_
+
+---
+ 
 ![Data Management & Analytics](/docs/images/DataManagementAnalytics.gif)
 
----
 
-_The Data Management & Analytics Scenario represents the strategic design path and target technical state for your Azure data platform._
-
----
-
-This repository describes a Data Product template for Data Analytics and Data Science. Data Products are another unit of scale inside a Data Landing Zone through the means of Resource Groups. Resource Groups inside the Data Landing Zone subscription are created and handed over to cross-functional teams to provide them an environment in which they can work on their own data use-cases. The ownership of this resource group and operation of services within is handed over to the Data Product teams. In order to enable self-service, the owning teams are free to deploy their own services within the guardrails set by Azure Policy. Repository templates can be used for these teams to more quickly scale within an organization and rollout common data analysis patterns not just once but multiple times across various use-cases. The ownership of templates is also handed over, which ultimately gives these teams a starting point while allowing them to enhance the template based on their specific requirements. This Data Product template deploys a set of services, which can be used for data analytics and data science. The template includes services such as Azure Machine Learning, Cognitive Services and Azure Search. The Data Product teams can then leverage these tools to generate insights and value with data.
+This repository describes a framework...
 
 > **Note:** Before getting started with the deployment, please make sure you are familiar with the [complementary documentation in the Cloud Adoption Framework](https://aka.ms/adopt/datamanagement). Also, before deploying your first Data Product, please make sure that you have deployed a [Data Management Landing Zone](https://github.com/Azure/data-management-zone) and at least one [Data Landing Zone](https://github.com/Azure/data-landing-zone). The minimal recommended setup consists of a single [Data Management Landing Zone](https://github.com/Azure/data-management-zone) and a single [Data Landing Zone](https://github.com/Azure/data-landing-zone).
 
