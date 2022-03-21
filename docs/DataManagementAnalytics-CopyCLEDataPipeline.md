@@ -84,6 +84,8 @@ A Synapse pipeline can be built to automate the process. The decryption and encr
 	GO
 ![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_result.jpg)
 
+**Benifit of the solution:** all the decryption and encryption operations happen within the pipeline transant, no need to write decrypted data into a temporary table or sort. 
+
 ## Alternative
 
 There is also option to [create identical symmetric key on two different servers](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_encryption.jpg) to avoid the decrypt and encrypt CLE data within pipeline, but just read and write the encrypted data as is within the pipeline. **However, using the same symmetric key in multiple locations is not the best practice depending on customers’ security practice.**
