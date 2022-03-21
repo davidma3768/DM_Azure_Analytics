@@ -1,4 +1,4 @@
-# Moving CLE Data Across Azure Synapse Dedicated SQL to Azure SQL
+# Moving CLE Data From Azure Synapse Dedicated SQL to Azure SQL
 
 This is to explore how to build Synapse pipeline to copy CLE data from Synapse to Azure SQL with CLE column. 
 
