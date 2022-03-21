@@ -84,7 +84,7 @@ A Synapse pipeline can be built to automate the process. The decryption and encr
 	GO
 ![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_result.jpg)
 
-**Benifit of the solution:** all the decryption and encryption operations happen within the pipeline transant, no need to write decrypted data into a temporary table or sort. 
+**Benefit of the solution:** all the decryption and encryption operations happen within the pipeline transant, no need to write decrypted data into a temporary table or sort. 
 
 ## Alternative
 
