@@ -26,9 +26,11 @@ For details on setting up CLE, please read here: [Encrypt a Column of Data - SQL
 A Synapse pipeline can be built to automate the process. The decryption and encryption can be handled within a single pipeline. (To meet the security requirements, for example cannot have decrypted PII data in the data store)
 
 **Step 1:** Configure data source to retrieve CLE data with Symmetric Key from Synapse Dedicated SQL pool table
+![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_decryption.jpg)
  
 **Step 2:** Create table type and store procedure that can be used by pipeline to write encryption data to sink table
-create type [sales].[CreditCard] as table(
+
+![create type [sales].[CreditCard] as table(
     [CreditCardID] [int] NOT NULL,
     [CardType] [nvarchar](50) NOT NULL,
     [CardNumber] [nvarchar](25) NOT NULL,
@@ -36,68 +38,54 @@ create type [sales].[CreditCard] as table(
     [ExpYear] [smallint] NOT NULL, 
     [ModifiedDate] [datetime] NOT NULL ,
 	[CardNumber_Decrypted] [nvarchar](25) NULL
-)
-create procedure sales.spCopyCLEData (@cledata [dbo].[CreditCard] READONLY)
-as 
-begin
-OPEN SYMMETRIC KEY CreditCards_Key11  
-   DECRYPTION BY CERTIFICATE customer_cle_cert_01;  
+)](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_create_type.jpg)
 
-insert into [sales].[CreditCard]
-select [CreditCardID],[CardType],[CardNumber],[ExpMonth],[ExpYear],[ModifiedDate],
-		CONVERT
-		(
-			varbinary(160),
-			EncryptByKey
-			(
-				Key_GUID('CreditCards_Key11'), [CardNumber_Decrypted], 1, 
-				HASHBYTES
-				(
-					'SHA2_256', CONVERT( varbinary , CreditCardID)
-				)
-			)
-		) as CardNumber_Encrypted
-from @cledata
-end
-go
+![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_create_sp.jpg)
 
 **Step 3:** Configure data sink to write data into Azure SQL with encryption
+![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_encryption.jpg)
 
  
 **Step 4:** Run pipeline and verify the result
- OPEN SYMMETRIC KEY key_DataShare  
-   DECRYPTION BY CERTIFICATE cert_keyProtection;  
-SELECT CreditCardID,CardNumber, CardNumber_Encrypted   
-    AS 'Encrypted card number', CONVERT(nvarchar,  
-    DecryptByKey(CardNumber_Encrypted, 1 ,   
-    HASHBYTES('SHA2_256', CONVERT(varbinary, CreditCardID))))  
-    AS 'Decrypted card number' 
-FROM Sales.CreditCard_SharedCert;  
-GO
- 
+
+	 OPEN SYMMETRIC KEY key_DataShare  
+	   DECRYPTION BY CERTIFICATE cert_keyProtection;  
+
+	SELECT CreditCardID,CardNumber, CardNumber_Encrypted  
+
+	    AS 'Encrypted card number', CONVERT(nvarchar,  
+	    DecryptByKey(CardNumber_Encrypted, 1 ,   
+	    HASHBYTES('SHA2_256', CONVERT(varbinary, CreditCardID))))  
+	    AS 'Decrypted card number' 
+	FROM Sales.CreditCard_SharedCert;  
+	GO
+![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_result.jpg)
 
 ## Alternative
 
-There is also option to create identical symmetric key on two different servers to avoid the decrypt and encrypt CLE data within pipeline, but just read and write the encrypted data as is. However, using the same symmetric key in multiple locations is not the best practice depending on customers’ security practice.
-The parameters, KEY_SOURCE and IDENTITY_VALUE can be used to create identical Symmetric key on two different data stores. 
+There is also option to [create identical symmetric key on two different servers](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_encryption.jpg) to avoid the decrypt and encrypt CLE data within pipeline, but just read and write the encrypted data as is. However, using the same symmetric key in multiple locations is not the best practice depending on customers’ security practice.
 
-CREATE SYMMETRIC KEY [key_DataShare] WITH  
-    KEY_SOURCE = 'My key generation bits. This is a shared secret!',  
-    ALGORITHM = AES_256,   
-    IDENTITY_VALUE = 'Key Identity generation bits. Also a shared secret'  
-    ENCRYPTION BY CERTIFICATE [cert_keyProtection];  
-GO
+The parameters, **KEY_SOURCE** and **IDENTITY_VALUE** can be used to create identical Symmetric key on two different data stores. 
+
+	CREATE SYMMETRIC KEY [key_DataShare] WITH  
+	    KEY_SOURCE = 'My key generation bits. This is a shared secret!',  
+	    ALGORITHM = AES_256,   
+	    IDENTITY_VALUE = 'Key Identity generation bits. Also a shared secret'  
+	    ENCRYPTION BY CERTIFICATE [cert_keyProtection];  
+	GO
+
 With the identical Symmetric key on source data store and sink data store, a simple COPY pipeline can be used to move data without decryption first. 
  
  
 To verify the result
-OPEN SYMMETRIC KEY key_DataShare  
-   DECRYPTION BY CERTIFICATE cert_keyProtection;  
-SELECT CreditCardID,CardNumber, CardNumber_Encrypted   
-    AS 'Encrypted card number', CONVERT(nvarchar,  
-    DecryptByKey(CardNumber_Encrypted, 1 ,   
-    HASHBYTES('SHA2_256', CONVERT(varbinary, CreditCardID))))  
-    AS 'Decrypted card number' 
-FROM Sales.CreditCard_SharedCert;  
-GO
- 
+	OPEN SYMMETRIC KEY key_DataShare  
+	   DECRYPTION BY CERTIFICATE cert_keyProtection;  
+
+	SELECT CreditCardID,CardNumber, CardNumber_Encrypted   
+	    AS 'Encrypted card number', CONVERT(nvarchar,  
+	    DecryptByKey(CardNumber_Encrypted, 1 ,   
+	    HASHBYTES('SHA2_256', CONVERT(varbinary, CreditCardID))))  
+	    AS 'Decrypted card number' 
+	FROM Sales.CreditCard_SharedCert;  
+	GO
+![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_result.jpg)
