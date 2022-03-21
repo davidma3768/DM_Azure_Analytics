@@ -30,15 +30,39 @@ A Synapse pipeline can be built to automate the process. The decryption and encr
  
 **Step 2:** Create table type and store procedure that can be used by pipeline to write encryption data to sink table
 
-![create type [sales].[CreditCard] as table(
-    [CreditCardID] [int] NOT NULL,
-    [CardType] [nvarchar](50) NOT NULL,
-    [CardNumber] [nvarchar](25) NOT NULL,
-    [ExpMonth] [tinyint] NOT NULL,
-    [ExpYear] [smallint] NOT NULL, 
-    [ModifiedDate] [datetime] NOT NULL ,
-	[CardNumber_Decrypted] [nvarchar](25) NULL
-)](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_create_type.jpg)
+	![create type [sales].[CreditCard] as table(
+	    [CreditCardID] [int] NOT NULL,
+	    [CardType] [nvarchar](50) NOT NULL,
+	    [CardNumber] [nvarchar](25) NOT NULL,
+	    [ExpMonth] [tinyint] NOT NULL,
+	    [ExpYear] [smallint] NOT NULL, 
+	    [ModifiedDate] [datetime] NOT NULL ,
+		[CardNumber_Decrypted] [nvarchar](25) NULL
+	)](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_create_type.jpg)
+
+	create procedure sales.spCopyCLEData (@cledata [dbo].[CreditCard] READONLY)
+	as 
+	begin
+	OPEN SYMMETRIC KEY CreditCards_Key11  
+	   DECRYPTION BY CERTIFICATE customer_cle_cert_01;  
+
+	insert into [sales].[CreditCard]
+	select [CreditCardID],[CardType],[CardNumber],[ExpMonth],[ExpYear],[ModifiedDate],
+			CONVERT
+			(
+				varbinary(160),
+				EncryptByKey
+				(
+					Key_GUID('CreditCards_Key11'), [CardNumber_Decrypted], 1, 
+					HASHBYTES
+					(
+						'SHA2_256', CONVERT( varbinary , CreditCardID)
+					)
+				)
+			) as CardNumber_Encrypted
+	from @cledata
+	end
+	go
 
 ![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_create_sp.jpg)
 
@@ -78,6 +102,7 @@ With the identical Symmetric key on source data store and sink data store, a sim
  
  
 To verify the result
+
 	OPEN SYMMETRIC KEY key_DataShare  
 	   DECRYPTION BY CERTIFICATE cert_keyProtection;  
 
