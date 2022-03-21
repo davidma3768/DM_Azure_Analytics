@@ -30,7 +30,7 @@ A Synapse pipeline can be built to automate the process. The decryption and encr
  
 **Step 2:** Create table type and store procedure that can be used by pipeline to write encryption data to sink table
 
-	![create type [sales].[CreditCard] as table(
+	create type [sales].[CreditCard] as table(
 	    [CreditCardID] [int] NOT NULL,
 	    [CardType] [nvarchar](50) NOT NULL,
 	    [CardNumber] [nvarchar](25) NOT NULL,
@@ -38,7 +38,7 @@ A Synapse pipeline can be built to automate the process. The decryption and encr
 	    [ExpYear] [smallint] NOT NULL, 
 	    [ModifiedDate] [datetime] NOT NULL ,
 		[CardNumber_Decrypted] [nvarchar](25) NULL
-	)](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_create_type.jpg)
+	)
 
 	create procedure sales.spCopyCLEData (@cledata [dbo].[CreditCard] READONLY)
 	as 
@@ -64,7 +64,6 @@ A Synapse pipeline can be built to automate the process. The decryption and encr
 	end
 	go
 
-![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_create_sp.jpg)
 
 **Step 3:** Configure data sink to write data into Azure SQL with encryption
 ![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_encryption.jpg)
@@ -87,7 +86,7 @@ A Synapse pipeline can be built to automate the process. The decryption and encr
 
 ## Alternative
 
-There is also option to [create identical symmetric key on two different servers](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_encryption.jpg) to avoid the decrypt and encrypt CLE data within pipeline, but just read and write the encrypted data as is. However, using the same symmetric key in multiple locations is not the best practice depending on customers’ security practice.
+There is also option to [create identical symmetric key on two different servers](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_encryption.jpg) to avoid the decrypt and encrypt CLE data within pipeline, but just read and write the encrypted data as is within the pipeline. **However, using the same symmetric key in multiple locations is not the best practice depending on customers’ security practice.**
 
 The parameters, **KEY_SOURCE** and **IDENTITY_VALUE** can be used to create identical Symmetric key on two different data stores. 
 
