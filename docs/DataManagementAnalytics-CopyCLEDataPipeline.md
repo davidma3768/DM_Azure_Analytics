@@ -98,6 +98,8 @@ The parameters, **KEY_SOURCE** and **IDENTITY_VALUE** can be used to create iden
 	GO
 
 With the identical Symmetric key on source data store and sink data store, a simple COPY pipeline can be used to move data without decryption first. 
+
+![](https://github.com/davidma3768/DM_Azure_Analytics/blob/main/docs/images/cle_noencryption.jpg)
  
  
 To verify the result
