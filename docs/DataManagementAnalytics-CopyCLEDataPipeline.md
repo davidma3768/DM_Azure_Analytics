@@ -1,100 +1,103 @@
-# Data Product Analytics - Setting up Service Principal
+# Moving CLE Data Across Azure Synapse Dedicated SQL to Azure SQL
 
-A service principal with *Contributor*, *Private DNS Zone Contributor* and *Network Contributor* rights needs to be generated for authentication and authorization from GitHub or Azure DevOps to your Azure subscription. This is required to deploy resources to your environment.
+This is to explore how to build Synapse pipeline to copy CLE data from Synapse to Azure SQL with CLE column. 
 
-> **Note:** The number of role assignments can be further reduced in a production scenario. The **Private DNS Zone Contributor** is not required if the deployment of DNS A-records of the Private Endpoints is automated through Azure Policies with `deployIfNotExists` effect.
+## Introduction
+Data security is a critical task for any organization, especially if you store customer personal data such as Customer contact number, email address, social security number, bank and credit card numbers. The main goal of data security is to protect unauthorized access to data within and outside the organization. To achieve this, we start by providing access to relevant persons. We still have a chance that these authorized people can also misuse the data; therefore, most of the database engines provide encryption solutions. Column level encryption (also known as Cell Level Encryption) can be used to encrypt the data for users who have access to the encryption key to access. 
+CLE has been introduced into Azure for Azure SQL as well as Synapse to increase compatibility between on-premises SQL functionality and Azure data engine 
 
-## Create Service Principal
+## CLE vs. TDE
+**The advantages of CLE**
 
-First, go to the Azure Portal to find the ID of your subscription. Then start the Cloud Shell or Azure CLI, login to Azure, set the Azure context and execute the following commands to generate the required credentials:
+- Since it is column level encryption, it encrypts only the sensitive information in a table.
+With CLE, the data is still encrypted even when it is loaded into memory.
+- CLE allows for “explicit key management” giving you greater control over the keys and who has access to them. CLE is highly configurable, giving you a high degree of customization (especially when your applications require it).
+- Queries may be faster with CLE if the encrypted column(s) is not referenced in the query. TDE will always decrypt the entire row in the table. CLE will decrypt the column value only IF it is a part of the data that is returned. So in some cases CLE implementations provide much better overall performance.
 
-**Azure CLI:**
+**The disadvantages of CLE**
 
-```sh
-# Replace {service-principal-name} and {subscription-id} with your
-# Azure subscription id and any name for your service principal.
-az ad sp create-for-rbac \
-  --name "{service-principal-name}" \
-  --role "Contributor" \
-  --scopes "/subscriptions/{subscription-id}" \
-  --sdk-auth
-```
+- One of the main disadvantages of CLE is the high degree of fully manual application changes needed to use it. TDE, on the other hand, can be very simple to deploy with no changes to the database, tables or columns required.
+- CLE can also have high performance penalties if search queries cannot be optimized to avoid encrypted data. “As a rough comparison, performance for a very basic query (that selects and decrypts a single encrypted column) when using cell-level encryption tends to be around 20% worse [than TDE].”
 
-This will generate the following JSON output:
+For details on setting up CLE, please read here: [Encrypt a Column of Data - SQL Server & Azure Synapse Analytics & Azure SQL Database & SQL Managed Instance | Microsoft Docs](https://docs.microsoft.com/en-us/sql/relational-databases/security/encryption/encrypt-a-column-of-data?redirectedfrom=MSDN&view=sql-server-ver15)
 
-```json
-{
-  "clientId": "<GUID>",
-  "clientSecret": "<GUID>",
-  "subscriptionId": "<GUID>",
-  "tenantId": "<GUID>",
-  (...)
-}
-```
+## Build Synapse pipeline to copy CLE data
 
-> **Note:** Take note of the output. It will be required for the next steps.
+A Synapse pipeline can be built to automate the process. The decryption and encryption can be handled within a single pipeline. (To meet the security requirements, for example cannot have decrypted PII data in the data store)
 
-## Adding additional role assignments
+**Step 1:** Configure data source to retrieve CLE data with Symmetric Key from Synapse Dedicated SQL pool table
+ 
+**Step 2:** Create table type and store procedure that can be used by pipeline to write encryption data to sink table
+create type [sales].[CreditCard] as table(
+    [CreditCardID] [int] NOT NULL,
+    [CardType] [nvarchar](50) NOT NULL,
+    [CardNumber] [nvarchar](25) NOT NULL,
+    [ExpMonth] [tinyint] NOT NULL,
+    [ExpYear] [smallint] NOT NULL, 
+    [ModifiedDate] [datetime] NOT NULL ,
+	[CardNumber_Decrypted] [nvarchar](25) NULL
+)
+create procedure sales.spCopyCLEData (@cledata [dbo].[CreditCard] READONLY)
+as 
+begin
+OPEN SYMMETRIC KEY CreditCards_Key11  
+   DECRYPTION BY CERTIFICATE customer_cle_cert_01;  
 
-For automation purposes, more role assignments are required for the service principal.
-Additional required role assignments include:
+insert into [sales].[CreditCard]
+select [CreditCardID],[CardType],[CardNumber],[ExpMonth],[ExpYear],[ModifiedDate],
+		CONVERT
+		(
+			varbinary(160),
+			EncryptByKey
+			(
+				Key_GUID('CreditCards_Key11'), [CardNumber_Decrypted], 1, 
+				HASHBYTES
+				(
+					'SHA2_256', CONVERT( varbinary , CreditCardID)
+				)
+			)
+		) as CardNumber_Encrypted
+from @cledata
+end
+go
 
-| Role Name | Description | Scope |
-|:----------|:------------|:------|
-| [Private DNS Zone Contributor](https://docs.microsoft.com/azure/role-based-access-control/built-in-roles#private-dns-zone-contributor) | We expect you to deploy all Private DNS Zones for all data services into a single subscription and resource group. Therefor, the service principal needs to be Private DNS Zone Contributor on the global dns resource group which was created during the Data Management Landing Zone deployment. This is required to deploy A-records for the respective private endpoints.| <div style="width: 36ch">(Resource Group Scope) `/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}`</div> |
-| [Network Contributor](https://docs.microsoft.com/azure/role-based-access-control/built-in-roles#network-contributor) | In order to deploy Private Endpoints to the specified privatelink-subnet which was created during the Data Landing Zone deployment, the service principal requires **Network Contributor** access on that specific subnet.| <div style="width: 36ch">(Child-Resource Scope) `/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName} /providers/Microsoft.Network/virtualNetworks/{virtualNetworkName}/subnets/{subnetName}"`</div> |
+**Step 3:** Configure data sink to write data into Azure SQL with encryption
 
-To add these role assignments, you can use the [Azure Portal](https://portal.azure.com/) or run the following commands using Azure CLI/Azure Powershell:
+ 
+**Step 4:** Run pipeline and verify the result
+ OPEN SYMMETRIC KEY key_DataShare  
+   DECRYPTION BY CERTIFICATE cert_keyProtection;  
+SELECT CreditCardID,CardNumber, CardNumber_Encrypted   
+    AS 'Encrypted card number', CONVERT(nvarchar,  
+    DecryptByKey(CardNumber_Encrypted, 1 ,   
+    HASHBYTES('SHA2_256', CONVERT(varbinary, CreditCardID))))  
+    AS 'Decrypted card number' 
+FROM Sales.CreditCard_SharedCert;  
+GO
+ 
 
-**Azure CLI - Add role assignments:**
+## Alternative
 
-```sh
-# Get Service Principal Object ID
-az ad sp list --display-name "{servicePrincipalName}" --query "[].{objectId:objectId}" --output tsv
+There is also option to create identical symmetric key on two different servers to avoid the decrypt and encrypt CLE data within pipeline, but just read and write the encrypted data as is. However, using the same symmetric key in multiple locations is not the best practice depending on customers’ security practice.
+The parameters, KEY_SOURCE and IDENTITY_VALUE can be used to create identical Symmetric key on two different data stores. 
 
-# Add role assignment
-# Resource Scope level assignment
-az role assignment create \
-  --assignee "{servicePrincipalObjectId}" \
-  --role "{roleName}" \
-  --scopes "{scope}"
-
-# Resource group scope level assignment
-az role assignment create \
-  --assignee "{servicePrincipalObjectId}" \
-  --role "{roleName}" \
-  --resource-group "{resourceGroupName}"
-```
-
-**Azure Powershell - Add role assignments:**
-
-```powershell
-# Get Service Principal Object ID
-$spObjectId = (Get-AzADServicePrincipal -DisplayName "{servicePrincipalName}").id
-
-# Add role assignment
-# For Resource Scope level assignment
-New-AzRoleAssignment `
-  -ObjectId $spObjectId `
-  -RoleDefinitionName "{roleName}" `
-  -Scope "{scope}"
-
-# For Resource group scope level assignment
-New-AzRoleAssignment `
-  -ObjectId $spObjectId `
-  -RoleDefinitionName "{roleName}" `
-  -ResourceGroupName "{resourceGroupName}"
-
-# For Child-Resource Scope level assignment
-New-AzRoleAssignment `
-  -ObjectId $spObjectId `
-  -RoleDefinitionName "{roleName}" `
-  -ResourceName "{resourceName}" `
-  -ResourceType "{resourceType (e.g. 'Microsoft.Network/virtualNetworks/subnets')}" `
-  -ParentResource "{parentResource (e.g. 'virtualNetworks/{virtualNetworkName}')" `
-  -ResourceGroupName "{resourceGroupName}
-```
-
->[Previous](/docs/DataManagementAnalytics-CreateRepository.md)
->[Next (Option (a) GitHub Actions)](/docs/DataManagementAnalytics-GitHubActionsDeployment.md)
->[Next (Option (b) Azure DevOps)](/docs/DataManagementAnalytics-AzureDevOpsDeployment.md)
+CREATE SYMMETRIC KEY [key_DataShare] WITH  
+    KEY_SOURCE = 'My key generation bits. This is a shared secret!',  
+    ALGORITHM = AES_256,   
+    IDENTITY_VALUE = 'Key Identity generation bits. Also a shared secret'  
+    ENCRYPTION BY CERTIFICATE [cert_keyProtection];  
+GO
+With the identical Symmetric key on source data store and sink data store, a simple COPY pipeline can be used to move data without decryption first. 
+ 
+ 
+To verify the result
+OPEN SYMMETRIC KEY key_DataShare  
+   DECRYPTION BY CERTIFICATE cert_keyProtection;  
+SELECT CreditCardID,CardNumber, CardNumber_Encrypted   
+    AS 'Encrypted card number', CONVERT(nvarchar,  
+    DecryptByKey(CardNumber_Encrypted, 1 ,   
+    HASHBYTES('SHA2_256', CONVERT(varbinary, CreditCardID))))  
+    AS 'Decrypted card number' 
+FROM Sales.CreditCard_SharedCert;  
+GO
+ 
