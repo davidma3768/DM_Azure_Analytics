@@ -1,5 +1,7 @@
 # Synapse E2E demo case list (in construction)
 
+## Background (Kal)
+
 ## Demo Structure
 ![Demo Structure](/docs/images/demo_structure.jpg)
 ## Data Exploration with Serverless
